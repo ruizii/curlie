@@ -101,6 +101,9 @@ func parseArg(arg string) (typ argType, name, value string) {
 			if i+1 < len(arg) && arg[i+1] == '=' {
 				return jsonArg, arg[:i], arg[i+2:]
 			}
+			if i+1 < len(arg) && arg[i+1] == '/' {
+				return
+			}
 			return headerArg, arg[:i], arg[i+1:]
 		case '=':
 			if i+1 < len(arg) && arg[i+1] == '=' {

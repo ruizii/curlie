@@ -81,6 +81,10 @@ func Parse(argv Opts) (opts Opts) {
 			args = append(args, arg)
 			continue
 		}
+		if arg == "-x" {
+			args = append(args, arg)
+			continue
+		}
 		if arg == "--" {
 			// Enf of opts marker
 			more = false
