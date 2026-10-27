@@ -74,7 +74,7 @@ type HeaderColorizer struct {
 
 func (c *HeaderColorizer) Write(p []byte) (n int, err error) {
 	c.buf = c.buf[:0]
-	for i := 0; i < len(p); i++ {
+	for i := range len(p) {
 		b := p[i]
 		c.line = append(c.line, b)
 		if b == '\n' {
