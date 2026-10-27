@@ -14,15 +14,12 @@ import (
 	"golang.org/x/term"
 )
 
-var (
-	version = "v0.0.0-LOCAL"
-	date    = "0000-00-00T00:00:00Z"
-)
+const version = "v0.1.0"
 
 func main() {
 	// handle `curlie version` separately from `curl --version`
 	if len(os.Args) == 2 && os.Args[1] == "version" {
-		fmt.Printf("curlie %s (%s)\n", version, date)
+		fmt.Printf("curlie %s\n", version)
 		os.Exit(0)
 		return
 	}
@@ -138,16 +135,30 @@ func main() {
 	cmd := exec.Command("curl", opts...)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
-	cmd.Stderr = &formatter.HeaderCleaner{
+	cleaner := &formatter.HeaderCleaner{
 		Out:     stderr,
 		Verbose: verbose,
 		Post:    input,
+	}
+	cmd.Stderr = cleaner
+	var body *formatter.Gate
+	if opts.Has("v") || opts.Has("verbose") {
+		// Hold the body until the headers are written. The gate is opened when
+		// curl logs received data, which it only does in verbose mode.
+		body = &formatter.Gate{Out: stdout}
+		cmd.Stdout = body
+		cleaner.Body = body
 	}
 	if (opts.Has("I") || opts.Has("head")) && term.IsTerminal(stdoutFd) {
 		cmd.Stdout = io.Discard
 	}
 	status := 0
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	if body != nil {
+		// Flush anything still held back, ie if no received data was logged.
+		body.Open()
+	}
+	if err != nil {
 		switch err := err.(type) {
 		case *exec.ExitError:
 			if err.Stderr != nil {
