@@ -16,6 +16,10 @@ type HeaderCleaner struct {
 	// Post is inserted after the request headers.
 	Post *bytes.Buffer
 
+	// Body, if set, is closed when a request starts and opened once the
+	// response headers have been written, before curl writes the body.
+	Body *Gate
+
 	buf  []byte
 	line []byte
 }
@@ -29,6 +33,7 @@ func (c *HeaderCleaner) Write(p []byte) (n int, err error) {
 	n = len(p)
 	cp := c.buf
 	p = bytes.Replace(p, capath, ccapath, 1) // Fix curl misformatted line
+	openBody := false
 	for len(p) > 0 {
 		idx := bytes.IndexByte(p, '\n')
 		if idx == -1 {
@@ -41,6 +46,11 @@ func (c *HeaderCleaner) Write(p []byte) (n int, err error) {
 		b, i := firstVisibleChar(c.line)
 		switch b {
 		case '>':
+			// A new request (ie redirect): hold the body until its response.
+			openBody = false
+			if c.Body != nil {
+				c.Body.Close()
+			}
 			if c.Verbose {
 				c.line = c.line[i+2:]
 			} else {
@@ -50,11 +60,18 @@ func (c *HeaderCleaner) Write(p []byte) (n int, err error) {
 			c.line = c.line[i+2:]
 		case '}', '{':
 			ignore = true
+			if b == '{' {
+				// Curl logs received data before writing it to stdout.
+				openBody = true
+			}
 			if c.Verbose && c.Post != nil {
-				cp = append(append(cp, bytes.TrimSpace(c.Post.Bytes())...), '\n', '\n')
+				if post := bytes.TrimSpace(c.Post.Bytes()); len(post) > 0 {
+					cp = append(append(cp, bytes.TrimSpace(c.Post.Bytes())...), '\n', '\n')
+				}
 				c.Post = nil
 			}
 		case '*':
+			c.line = c.line[:0]
 			if !c.Verbose {
 				ignore = true
 			}
@@ -65,6 +82,9 @@ func (c *HeaderCleaner) Write(p []byte) (n int, err error) {
 		c.line = c.line[:0]
 	}
 	_, err = c.Out.Write(cp)
+	if openBody && c.Body != nil {
+		c.Body.Open()
+	}
 	return
 }
 
