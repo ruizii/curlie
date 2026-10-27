@@ -82,7 +82,7 @@ func normalizeURL(u string) string {
 		}
 		noScheme = true
 	}
-	println(u)
+	// println(u)
 	pu, err := url.Parse(u)
 	if err != nil {
 		fmt.Print(err)
